@@ -6,3 +6,4 @@
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 .content:has(.action-zone){padding-bottom:165px}.action-zone{position:fixed;left:0;right:0;bottom:0;pointer-events:none}.call-button{pointer-events:auto}
 .footer-row{flex-wrap:wrap;gap:8px 16px}
+.hero-art:hover{transform:rotate(-7deg) scale(1.05)}.hero-art:active{transform:rotate(-7deg) scale(.96)}.intro-hint{color:#2b6748;font-size:.75rem;font-weight:800;margin:-8px 0 16px}

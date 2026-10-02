@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { tone, speak, stopSpeech, unlockAudio } from "./audio";
+import { playIntro, playRoundOpening, tone, speak, stopSpeech, unlockAudio } from "./audio";
 import type { PublicRoom } from "../shared/game";
 import "./style.css";
 
@@ -104,9 +104,7 @@ function App() {
     if (key === lastAudioRef.current) return;
     lastAudioRef.current = key;
     if (room.phase === "countdown") {
-      unlockAudio();
-      speak(room.round === 1 ? "さあ、それではまいりましょう。たけのこ、たけのこ、ニョッキッキ！" : "たけのこ、たけのこ、ニョッキッキ！");
-      tone(196, 0.22);
+      playRoundOpening(room.round === 1);
     } else if (room.phase === "active") {
       stopSpeech();
       const call = room.safeCalls.at(-1);
@@ -161,6 +159,7 @@ function App() {
   }
 
   function leaveView() {
+    stopSpeech();
     if (identity) localStorage.removeItem(identityKey(identity.code));
     history.replaceState(null, "", "/");
     setIdentity(null); setRoom(null); setConnected(false); setError("");
@@ -174,7 +173,8 @@ function App() {
 
   if (!identity) return (
     <main className="landing">
-      <div className="hero-art" aria-hidden="true"><span>🎍</span></div>
+      <button className="hero-art" type="button" onClick={playIntro} aria-label="たけのこスタートボタン：オープニングを再生"><span aria-hidden="true">🎍</span></button>
+      <p className="intro-hint">たけのこを押してオープニングを再生</p>
       <p className="eyebrow">みんなで、ドン！</p>
       <h1>たけのこ<br /><em>ニョッキ</em></h1>
       <p className="lead">離れていても、声をそろえて。<br />自分のタイミングで押して、ドボンを回避！</p>
@@ -260,7 +260,7 @@ function App() {
           </div>}
           {isHost && <button className="secondary" onClick={() => send({ type: "newGame" })}>同じメンバーでもう一度</button>}
         </div>}
-        <div className="footer-row"><button className="sound-toggle" onClick={() => { unlockAudio(); lastAudioRef.current = ""; if (sound) stopSpeech(); else { tone(523, 0.15); speak("音声オン。スタート！"); } setSound(!sound); }}>{sound ? "🔊 音声オン" : "🔇 音声オフ"}</button><button className="sound-toggle" onClick={() => { unlockAudio(); tone(523, 0.15); speak("スタート！"); }} aria-label="音声をテスト">音声テスト</button><span>同時押し判定 0.5秒</span></div>
+        <div className="footer-row"><button className="sound-toggle" onClick={() => { unlockAudio(); lastAudioRef.current = ""; if (sound) stopSpeech(); else { tone(523, 0.15); speak("音声オン。スタート！"); } setSound(!sound); }}>{sound ? "🔊 音声オン" : "🔇 音声オフ"}</button><button className="sound-toggle" onClick={playIntro} aria-label="音声をテスト">音声テスト</button><span>同時押し判定 0.5秒</span></div>
       </div>
     </main>
   );
