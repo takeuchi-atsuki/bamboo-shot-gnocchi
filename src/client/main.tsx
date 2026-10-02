@@ -115,6 +115,7 @@ function App() {
         speak(`${call.number}ニョッキ`);
       } else {
         tone(523, 0.2);
+        speak("スタート！");
       }
     } else if (room.phase === "result" || room.phase === "finished") {
       tone(196, 0.28);
@@ -141,6 +142,9 @@ function App() {
       setError("8文字の部屋コードを入力してください。"); return;
     }
     setBusy(true); setError(""); unlockAudio();
+    // Start speech while the user's tap is still active. Mobile browsers may
+    // reject the first utterance if it comes later from a WebSocket event.
+    if (sound) speak("音声の準備ができました");
     try {
       const url = mode === "create" ? "/api/rooms" : `/api/rooms/${codeInput.trim().toUpperCase()}/join`;
       const response = await fetch(url, {
@@ -256,7 +260,7 @@ function App() {
           </div>}
           {isHost && <button className="secondary" onClick={() => send({ type: "newGame" })}>同じメンバーでもう一度</button>}
         </div>}
-        <div className="footer-row"><button className="sound-toggle" onClick={() => { unlockAudio(); if (sound) stopSpeech(); setSound(!sound); }}>{sound ? "🔊 音声オン" : "🔇 音声オフ"}</button><span>同時押し判定 0.5秒</span></div>
+        <div className="footer-row"><button className="sound-toggle" onClick={() => { unlockAudio(); lastAudioRef.current = ""; if (sound) stopSpeech(); else { tone(523, 0.15); speak("音声オン。スタート！"); } setSound(!sound); }}>{sound ? "🔊 音声オン" : "🔇 音声オフ"}</button><button className="sound-toggle" onClick={() => { unlockAudio(); tone(523, 0.15); speak("スタート！"); }} aria-label="音声をテスト">音声テスト</button><span>同時押し判定 0.5秒</span></div>
       </div>
     </main>
   );
