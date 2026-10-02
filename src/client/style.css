@@ -5,3 +5,4 @@
 @media(max-width:640px){.topbar{padding:10px 15px}.brand{font-size:.82rem}.top-actions{gap:6px}.content{padding:19px 13px 35px}.room-info h2{font-size:1.15rem}.share{font-size:.68rem;padding:9px}.stage{min-height:220px;margin-bottom:22px}.board{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.seat{min-height:148px;border-radius:16px;padding:9px}.avatar{font-size:1.75rem;margin:2px 0}.seat strong{font-size:.8rem}.lamps{font-size:.64rem;gap:4px}.panel{padding:17px}.action-zone{padding-bottom:max(18px,env(safe-area-inset-bottom))}.call-button{height:94px}.call-button span{font-size:1.4rem}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 .content:has(.action-zone){padding-bottom:165px}.action-zone{position:fixed;left:0;right:0;bottom:0;pointer-events:none}.call-button{pointer-events:auto}
+.footer-row{flex-wrap:wrap;gap:8px 16px}
