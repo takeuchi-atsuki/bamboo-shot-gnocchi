@@ -1,0 +1,27 @@
+{
+  "name": "bamboo-shot-gnocchi",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "dev:server": "wrangler dev",
+    "build": "tsc --noEmit && vite build",
+    "deploy": "pnpm build && wrangler deploy",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:integration": "node tests/integration.mjs"
+  },
+  "dependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250906.0",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.3",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.7",
+    "wrangler": "^4.40.0"
+  }
+}
