@@ -270,6 +270,11 @@ export class GameRoom extends DurableObject<Env> {
         }
         break;
       }
+      case "setRandomStart":
+        if (host && room.phase === "lobby" && typeof command.enabled === "boolean") {
+          room.randomStart = command.enabled; changed = true;
+        }
+        break;
       case "start":
         if (host && room.players.every((item) => this.connected(item.id)) && startMatch(room, now)) changed = true;
         break;

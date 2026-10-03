@@ -29,6 +29,7 @@ export type RoomState = {
   round: number;
   scores: number[];
   collisionMs: 200 | 300 | 500;
+  randomStart: boolean;
   penaltyEnabled: boolean;
   cards: Card[];
   goAt: number | null;
@@ -53,7 +54,7 @@ export type PublicRoom = Omit<RoomState, "players" | "pending" | "cpuTimes" | "d
 export function createRoom(code: string, host: Player, cards: Card[], now: number): RoomState {
   return {
     messages: [], stamps: [], code, hostId: host.id, players: [host], phase: "lobby", round: 0,
-    scores: Array(SEATS).fill(0), collisionMs: 500, penaltyEnabled: false, cards,
+    scores: Array(SEATS).fill(0), collisionMs: 500, randomStart: false, penaltyEnabled: false, cards,
     goAt: null, lastProgressAt: null, pending: [], safeCalls: [], cpuTimes: [],
     dobons: [], losers: [], reason: null, pauseUntil: null, draws: {}, deck: [], updatedAt: now,
   };
@@ -63,6 +64,7 @@ export function publicRoom(room: RoomState): PublicRoom {
   const { players, pending, cpuTimes: _cpuTimes, deck: _deck, ...rest } = room;
   return {
     ...rest,
+    goAt: room.randomStart && room.phase === "countdown" ? null : room.goAt,
     players: players.map(({ token: _token, ...player }) => player),
     pendingSeats: pending.map((item) => item.seat),
   };
@@ -73,10 +75,10 @@ export function cpuSeats(room: RoomState): number[] {
   return Array.from({ length: SEATS }, (_, i) => i).filter((seat) => !occupied.has(seat));
 }
 
-export function startRound(room: RoomState, now: number, first: boolean, retry = false): void {
+export function startRound(room: RoomState, now: number, first: boolean, retry = false, random = Math.random): void {
   if (!retry) room.round += 1;
   room.phase = "countdown";
-  room.goAt = now + (first ? FIRST_COUNTDOWN_MS : NEXT_COUNTDOWN_MS);
+  room.goAt = now + (room.randomStart ? 2000 + Math.floor(random() * 6001) : first ? FIRST_COUNTDOWN_MS : NEXT_COUNTDOWN_MS);
   room.lastProgressAt = null;
   room.pending = [];
   room.safeCalls = [];
