@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import {
-  advance, createRoom, drawCard, nextDue, press, publicRoom, startMatch, startRound,
+  STAMPS, advance, createRoom, drawCard, nextDue, press, publicRoom, startMatch, startRound,
   type Card, type Player, type RoomState,
 } from "../shared/game";
 
@@ -71,7 +71,7 @@ export default {
 export class GameRoom extends DurableObject<Env> {
   private async load(): Promise<RoomState | null> {
     const room = await this.ctx.storage.get<RoomState>("room") ?? null;
-    if (room) room.messages ??= [];
+    if (room) { room.messages ??= []; room.stamps ??= []; }
     return room;
   }
 
@@ -262,6 +262,14 @@ export class GameRoom extends DurableObject<Env> {
       case "voiceState":
         for (const target of this.ctx.getWebSockets()) if (target.readyState === WebSocket.OPEN) target.send(JSON.stringify({ type: "voiceState", from: player.id, talking: command.enabled === true }));
         break;
+      case "stamp": {
+        const last = room.stamps.filter((item) => item.memberId === player.id).at(-1);
+        if (typeof command.text === "string" && STAMPS.includes(command.text as typeof STAMPS[number]) && (!last || now - last.at >= 2000)) {
+          room.stamps.push({ id: crypto.randomUUID(), memberId: player.id, name: player.name, text: command.text, at: now });
+          room.stamps = room.stamps.slice(-30); changed = true;
+        }
+        break;
+      }
       case "start":
         if (host && room.players.every((item) => this.connected(item.id)) && startMatch(room, now)) changed = true;
         break;

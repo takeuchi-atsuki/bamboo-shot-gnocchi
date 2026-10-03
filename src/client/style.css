@@ -10,3 +10,7 @@
 .chat-history { max-height: 180px; overflow-y: auto; overflow-wrap: anywhere; text-align: left; }
 .chat-history p { white-space: pre-wrap; padding: 8px 0; border-bottom: 1px solid #ddd; }
 .chat-history time { font-size: .75rem; opacity: .6; }
+.stamp-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stamp-buttons button { min-height: 44px; font-size: .85rem; padding: 8px; }
+.stamp-feed { min-height: 28px; overflow-wrap: anywhere; }
+.stamp-feed p { margin: 6px 0; }
