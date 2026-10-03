@@ -71,7 +71,7 @@ export default {
 export class GameRoom extends DurableObject<Env> {
   private async load(): Promise<RoomState | null> {
     const room = await this.ctx.storage.get<RoomState>("room") ?? null;
-    if (room) { room.messages ??= []; room.stamps ??= []; }
+    if (room) { room.messages ??= []; room.stamps ??= []; room.collisionMs ??= 500; room.randomStart ??= false; room.timedMode ??= false; room.timeLimitMs ??= 30_000; room.deadline ??= null; room.collisionAt ??= null; }
     return room;
   }
 
@@ -227,7 +227,7 @@ export class GameRoom extends DurableObject<Env> {
     const player = room.players.find((item) => item.id === id);
     if (!player) return;
     let changed = this.maintain(room, now);
-    let command: { type?: string; text?: unknown; id?: unknown; enabled?: unknown; collisionMs?: unknown; target?: unknown; signal?: unknown };
+    let command: { type?: string; text?: unknown; id?: unknown; enabled?: unknown; collisionMs?: unknown; target?: unknown; signal?: unknown; timeLimitMs?: unknown };
     try { command = JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message)); }
     catch { return; }
     if (!command || typeof command !== "object") return;
@@ -273,6 +273,16 @@ export class GameRoom extends DurableObject<Env> {
       case "setRandomStart":
         if (host && room.phase === "lobby" && typeof command.enabled === "boolean") {
           room.randomStart = command.enabled; changed = true;
+        }
+        break;
+      case "setTimedMode":
+        if (host && room.phase === "lobby" && typeof command.enabled === "boolean") {
+          room.timedMode = command.enabled; changed = true;
+        }
+        break;
+      case "setTimeLimit":
+        if (host && room.phase === "lobby" && [15_000, 30_000, 60_000].includes(command.timeLimitMs as number)) {
+          room.timeLimitMs = command.timeLimitMs as number; changed = true;
         }
         break;
       case "start":

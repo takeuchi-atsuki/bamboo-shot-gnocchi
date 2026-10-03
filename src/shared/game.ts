@@ -5,7 +5,7 @@ export const FIRST_COUNTDOWN_MS = 7_000;
 export const NEXT_COUNTDOWN_MS = 4_000;
 
 export type Phase = "lobby" | "countdown" | "active" | "result" | "finished" | "paused";
-export type ResultReason = "collision" | "last" | "flying" | "timeout";
+export type ResultReason = "collision" | "last" | "flying" | "timeout" | "clear";
 export type Player = {
   id: string;
   token: string;
@@ -30,6 +30,10 @@ export type RoomState = {
   scores: number[];
   collisionMs: 200 | 300 | 500;
   randomStart: boolean;
+  timedMode: boolean;
+  timeLimitMs: number;
+  deadline: number | null;
+  collisionAt: number | null;
   penaltyEnabled: boolean;
   cards: Card[];
   goAt: number | null;
@@ -54,7 +58,7 @@ export type PublicRoom = Omit<RoomState, "players" | "pending" | "cpuTimes" | "d
 export function createRoom(code: string, host: Player, cards: Card[], now: number): RoomState {
   return {
     messages: [], stamps: [], code, hostId: host.id, players: [host], phase: "lobby", round: 0,
-    scores: Array(SEATS).fill(0), collisionMs: 500, randomStart: false, penaltyEnabled: false, cards,
+    scores: Array(SEATS).fill(0), collisionMs: 500, randomStart: false, timedMode: false, timeLimitMs: 30_000, deadline: null, collisionAt: null, penaltyEnabled: false, cards,
     goAt: null, lastProgressAt: null, pending: [], safeCalls: [], cpuTimes: [],
     dobons: [], losers: [], reason: null, pauseUntil: null, draws: {}, deck: [], updatedAt: now,
   };
@@ -65,6 +69,7 @@ export function publicRoom(room: RoomState): PublicRoom {
   return {
     ...rest,
     goAt: room.randomStart && room.phase === "countdown" ? null : room.goAt,
+    deadline: room.randomStart && room.phase === "countdown" ? null : room.deadline,
     players: players.map(({ token: _token, ...player }) => player),
     pendingSeats: pending.map((item) => item.seat),
   };
@@ -79,6 +84,8 @@ export function startRound(room: RoomState, now: number, first: boolean, retry =
   if (!retry) room.round += 1;
   room.phase = "countdown";
   room.goAt = now + (room.randomStart ? 2000 + Math.floor(random() * 6001) : first ? FIRST_COUNTDOWN_MS : NEXT_COUNTDOWN_MS);
+  room.deadline = room.timedMode ? room.goAt! + room.timeLimitMs : null;
+  room.collisionAt = null;
   room.lastProgressAt = null;
   room.pending = [];
   room.safeCalls = [];
@@ -92,7 +99,7 @@ export function startRound(room: RoomState, now: number, first: boolean, retry =
 
 export function startMatch(room: RoomState, now: number): boolean {
   if (room.phase !== "lobby" || room.players.length === 0) return false;
-  if (room.penaltyEnabled && room.cards.length === 0) return false;
+  if (!room.timedMode && room.penaltyEnabled && room.cards.length === 0) return false;
   room.scores = Array(SEATS).fill(0);
   room.round = 0;
   room.draws = {};
@@ -111,6 +118,11 @@ export function shuffle<T>(values: T[], random = Math.random): T[] {
 }
 
 function endRound(room: RoomState, seats: number[], reason: ResultReason, now: number, random: () => number): void {
+  if (room.timedMode) {
+    room.reason = reason; room.phase = "result"; room.dobons = []; room.losers = [];
+    room.pending = []; room.cpuTimes = []; room.goAt = null; room.lastProgressAt = null;
+    room.updatedAt = now; return;
+  }
   const dobons = [...new Set(seats)];
   for (const seat of dobons) room.scores[seat] += 1;
   const three = dobons.some((seat) => room.scores[seat] >= 3);
@@ -131,6 +143,7 @@ function endRound(room: RoomState, seats: number[], reason: ResultReason, now: n
 export function press(room: RoomState, seat: number, now: number, random = Math.random): boolean {
   if (!Number.isInteger(seat) || seat < 0 || seat >= SEATS) return false;
   if (room.phase === "countdown" && room.goAt !== null && now < room.goAt) {
+    if (room.timedMode) return false;
     endRound(room, [seat], "flying", now, random);
     return true;
   }
@@ -145,6 +158,12 @@ function resolvePending(room: RoomState, at: number, random: () => number): void
   const pending = room.pending;
   room.pending = [];
   if (pending.length > 1) {
+    if (room.timedMode) {
+      room.collisionAt = at;
+      const cpus = new Set(cpuSeats(room));
+      for (const item of pending) if (cpus.has(item.seat)) room.cpuTimes.push({ seat: item.seat, at: at + 700 + Math.floor(random() * 1500) });
+      room.updatedAt = at; return;
+    }
     endRound(room, pending.map((item) => item.seat), "collision", at, random);
     return;
   }
@@ -152,7 +171,9 @@ function resolvePending(room: RoomState, at: number, random: () => number): void
   room.safeCalls.push({ seat, number: room.safeCalls.length + 1 });
   room.lastProgressAt = at;
   room.updatedAt = at;
-  if (room.safeCalls.length === SEATS - 1) {
+  if (room.timedMode && room.safeCalls.length === SEATS) {
+    endRound(room, [], "clear", at, random);
+  } else if (!room.timedMode && room.safeCalls.length === SEATS - 1) {
     const called = new Set(room.safeCalls.map((call) => call.seat));
     endRound(room, Array.from({ length: SEATS }, (_, i) => i).filter((i) => !called.has(i)), "last", at, random);
   }
@@ -175,7 +196,7 @@ export function advance(room: RoomState, now: number, random = Math.random): boo
     if (room.phase !== "active") break;
     const pendingEnd = room.pending.length ? room.pending[0].at + (room.collisionMs ?? COLLISION_MS) + 1 : Infinity;
     const cpuAt = Math.min(...room.cpuTimes.map((event) => event.at), Infinity);
-    const idleAt = room.pending.length ? Infinity : (room.lastProgressAt ?? now) + IDLE_MS;
+    const idleAt = room.timedMode ? room.deadline ?? Infinity : room.pending.length ? Infinity : (room.lastProgressAt ?? now) + IDLE_MS;
     const next = Math.min(pendingEnd, cpuAt, idleAt);
     if (next > now) break;
     if (cpuAt === next) {
@@ -199,14 +220,14 @@ export function nextDue(room: RoomState): number | null {
     return Math.min(
       room.pending.length ? room.pending[0].at + (room.collisionMs ?? COLLISION_MS) + 1 : Infinity,
       ...room.cpuTimes.map((event) => event.at),
-      room.pending.length ? Infinity : (room.lastProgressAt ?? Date.now()) + IDLE_MS,
+      room.timedMode ? room.deadline ?? Infinity : room.pending.length ? Infinity : (room.lastProgressAt ?? Date.now()) + IDLE_MS,
     );
   }
   return null;
 }
 
 export function drawCard(room: RoomState, memberId: string, random = Math.random): string | null {
-  if (room.phase !== "finished" || !room.penaltyEnabled) return null;
+  if (room.timedMode || room.phase !== "finished" || !room.penaltyEnabled) return null;
   const player = room.players.find((item) => item.id === memberId);
   if (!player || !room.losers.includes(player.seat) || room.cards.length === 0) return null;
   const previous = room.draws[memberId];

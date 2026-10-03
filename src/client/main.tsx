@@ -24,7 +24,7 @@ function seatLabel(seat: number, room: PublicRoom): string {
 }
 
 function reasonLabel(reason: PublicRoom["reason"]): string {
-  return ({ collision: "同時コール", last: "最後まで残った", flying: "フライング", timeout: "時間切れ" } as const)[reason ?? "timeout"];
+  return ({ collision: "同時コール", last: "最後まで残った", flying: "フライング", timeout: "時間切れ", clear: "全員成功" } as const)[reason ?? "timeout"];
 }
 
 function App() {
@@ -101,6 +101,7 @@ function App() {
   const isHost = Boolean(me && room?.hostId === me.id);
   const shareUrl = room ? `${location.origin}/?room=${room.code}` : "";
   const remain = room?.goAt ? Math.max(0, Math.ceil((room.goAt - (clock + offset)) / 1000)) : 0;
+  const timeRemain = room?.deadline ? Math.max(0, Math.ceil((room.deadline - (clock + offset)) / 1000)) : 0;
   const pauseRemain = room?.pauseUntil ? Math.max(0, Math.ceil((room.pauseUntil - (clock + offset)) / 1000)) : 0;
   const alreadyCalled = Boolean(me && room && (room.safeCalls.some((call) => call.seat === me.seat) || room.pendingSeats.includes(me.seat)));
   const canCall = Boolean(connected && me && room && (room.phase === "countdown" || room.phase === "active") && !alreadyCalled);
@@ -126,7 +127,7 @@ function App() {
       }
     } else if (room.phase === "result" || room.phase === "finished") {
       tone(196, 0.28);
-      speak(room.phase === "finished" ? "ドボン決定！" : "ドボン！");
+      speak(room.timedMode ? room.reason === "clear" ? "クリア！" : "時間切れ！" : room.phase === "finished" ? "ドボン決定！" : "ドボン！");
     } else if (room.phase === "paused") {
       stopSpeech();
     }
@@ -226,9 +227,9 @@ function App() {
         <section className="stage">
           <div className="stage-label">ROUND {String(room.round).padStart(2, "0")}</div>
           {room.phase === "lobby" && <><h2>参加者を待っています</h2><p>友だちにリンクを送って、全員そろったらスタート！</p></>}
-          {room.phase === "countdown" && <><h2>たけのこ たけのこ<br /><strong>ニョッキッキ！</strong></h2><div className="countdown">{room.randomStart ? "？" : remain}</div><p>合図より前に押すとフライング！</p></>}
-          {room.phase === "active" && <><h2>いまだ！<strong>ニョッキ！</strong></h2><div className="call-number">{room.safeCalls.length + 1}<small>ニョッキ</small></div><p>同時に押したらドボン</p></>}
-          {room.phase === "result" && <><h2>ドボン！</h2><p>{reasonLabel(room.reason)}</p><div className="result-names">{room.dobons.map((seat) => seatLabel(seat, room)).join("・")}</div></>}
+          {room.phase === "countdown" && <><h2>たけのこ たけのこ<br /><strong>ニョッキッキ！</strong></h2><div className="countdown">{room.randomStart ? "？" : remain}</div><p>{room.timedMode ? "開始前の押下は無効です" : "合図より前に押すとフライング！"}</p></>}
+          {room.phase === "active" && <><h2>いまだ！<strong>ニョッキ！</strong></h2><div className="call-number">{room.safeCalls.length + 1}<small>ニョッキ</small></div><p>{room.timedMode ? `残り${timeRemain}秒・全員の成功を目指そう！` : "同時に押したらドボン"}</p>{room.timedMode && room.collisionAt && clock + offset < room.collisionAt + 3000 && <p role="status">同時コール！もう一度押してね</p>}</>}
+          {room.phase === "result" && <><h2>{room.timedMode ? room.reason === "clear" ? "クリア！" : "未達成" : "ドボン！"}</h2><p>{reasonLabel(room.reason)}{room.timedMode ? `・${room.safeCalls.length}/6席成功` : ""}</p><div className="result-names">{room.dobons.map((seat) => seatLabel(seat, room)).join("・")}</div></>}
           {room.phase === "finished" && <><h2>ドボン決定！</h2><p>今回の負けは…</p><div className="result-names">{room.losers.map((seat) => seatLabel(seat, room)).join("・")}</div></>}
           {room.phase === "paused" && <><h2>ちょっと待ってね</h2><p>誰かの接続が切れました。{room.pauseUntil ? `あと${pauseRemain}秒待機します。` : "作成者が再開方法を選びます。"}</p></>}
         </section>
@@ -260,12 +261,14 @@ function App() {
         {room.phase === "lobby" && <section className="panel">
           <label>同時コール判定<select disabled={!isHost} value={room.collisionMs ?? 500} onChange={(event) => send({ type: "setCollision", collisionMs: Number(event.target.value) })}><option value={200}>200ms</option><option value={300}>300ms</option><option value={500}>500ms（従来）</option></select></label>
           <label><input type="checkbox" disabled={!isHost} checked={room.randomStart ?? false} onChange={(event) => send({ type: "setRandomStart", enabled: event.target.checked })} />ランダムスタート（2〜8秒・開始合図あり）</label>
+          <label><input type="checkbox" disabled={!isHost} checked={room.timedMode ?? false} onChange={(event) => send({ type: "setTimedMode", enabled: event.target.checked })} />時間制限モード（協力プレイ）</label>
+          {room.timedMode && <><label>制限時間<select value={room.timeLimitMs} disabled={!isHost} onChange={(event) => send({ type: "setTimeLimit", timeLimitMs: Number(event.target.value) })}><option value={15000}>15秒</option><option value={30000}>30秒</option><option value={60000}>60秒</option></select></label><p>CPUを含む6席全員で成功を目指します。同時押しは再挑戦。ドボン・敗北・罰ゲームはありません。</p></>}
           <div className="section-heading"><h3>ドボンカード</h3><span>全員で編集できます</span></div>
-          <div className="mode-row"><span>罰ゲームありモード</span><button className={`toggle ${room.penaltyEnabled ? "on" : ""}`} disabled={!isHost} onClick={() => send({ type: "setMode", enabled: !room.penaltyEnabled })} aria-label="罰ゲームモード切替" aria-pressed={room.penaltyEnabled}><span /></button></div>
+          <div className="mode-row"><span>罰ゲームありモード</span><button className={`toggle ${room.penaltyEnabled ? "on" : ""}`} disabled={!isHost || room.timedMode} onClick={() => send({ type: "setMode", enabled: !room.penaltyEnabled })} aria-label="罰ゲームモード切替" aria-pressed={room.penaltyEnabled}><span /></button></div>
           <form className="card-form" onSubmit={addCard}><input maxLength={120} value={cardInput} onChange={(event) => setCardInput(event.target.value)} placeholder="カードの内容を入力" /><button type="submit">追加</button></form>
           {room.cards.length === 0 ? <p className="muted">カードはまだありません。</p> : <ul className="card-list">{room.cards.map((card) => <li key={card.id}><span>{card.text}</span><button onClick={() => send({ type: "deleteCard", id: card.id })} aria-label={`${card.text}を削除`}>×</button></li>)}</ul>}
-          {isHost && <button className="primary start" disabled={!connected || room.players.some((player) => player.disconnectedAt) || (room.penaltyEnabled && room.cards.length === 0)} onClick={() => { unlockAudio(); send({ type: "start" }); }}>ゲームスタート <span>→</span></button>}
-          {isHost && room.penaltyEnabled && room.cards.length === 0 && <p className="error">罰ゲームありの場合、カードを1枚以上追加してください。</p>}
+          {isHost && <button className="primary start" disabled={!connected || room.players.some((player) => player.disconnectedAt) || (!room.timedMode && room.penaltyEnabled && room.cards.length === 0)} onClick={() => { unlockAudio(); send({ type: "start" }); }}>ゲームスタート <span>→</span></button>}
+          {isHost && !room.timedMode && room.penaltyEnabled && room.cards.length === 0 && <p className="error">罰ゲームありの場合、カードを1枚以上追加してください。</p>}
           {isHost && room.players.some((player) => player.disconnectedAt) && <p className="error">接続が切れた参加者が戻るまでお待ちください。</p>}
           {!isHost && <p className="muted">作成者がスタートするのを待っています。</p>}
         </section>}
