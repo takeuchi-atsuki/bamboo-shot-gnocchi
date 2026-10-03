@@ -25,6 +25,7 @@ function reasonLabel(reason: PublicRoom["reason"]): string {
 }
 
 function App() {
+  const [inheritCards, setInheritCards] = useState(false);
   const [name, setName] = useState("");
   const [codeInput, setCodeInput] = useState(new URLSearchParams(location.search).get("room") ?? "");
   const [identity, setIdentity] = useState<Identity | null>(() => {
@@ -149,7 +150,7 @@ function App() {
       const url = mode === "create" ? "/api/rooms" : `/api/rooms/${codeInput.trim().toUpperCase()}/join`;
       const response = await fetch(url, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mode === "create" ? { name: clean, cards: savedCards() } : { name: clean }),
+        body: JSON.stringify(mode === "create" ? { name: clean, cards: inheritCards ? savedCards() : [] } : { name: clean }),
       });
       const data = await response.json() as Identity & { error?: string };
       if (!response.ok) throw new Error(data.error ?? "参加できませんでした。");
@@ -160,8 +161,16 @@ function App() {
     finally { setBusy(false); }
   }
 
-  function leaveView() {
-    if (identity) localStorage.removeItem(identityKey(identity.code));
+  async function leaveView() {
+    if (identity) {
+      setBusy(true);
+      try {
+        const response = await fetch(`/api/rooms/${identity.code}/leave`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: identity.token }) });
+        if (!response.ok && response.status !== 404 && response.status !== 403) throw new Error("退出できませんでした。もう一度お試しください。");
+      } catch { setError("通信に失敗しました。再接続してから退出してください。"); setBusy(false); return; }
+      localStorage.removeItem(identityKey(identity.code));
+    }
+    setBusy(false);
     history.replaceState(null, "", "/");
     setIdentity(null); setRoom(null); setConnected(false); setError("");
   }
@@ -180,6 +189,8 @@ function App() {
       <p className="lead">離れていても、声をそろえて。<br />自分のタイミングで押して、ドボンを回避！</p>
       <section className="entry-card">
         <label>あなたの名前<input maxLength={20} value={name} onChange={(event) => setName(event.target.value)} placeholder="例：たけちゃん" /></label>
+        <label><input type="checkbox" checked={inheritCards} onChange={(event) => setInheritCards(event.target.checked)} />保存したカードを引き継ぐ</label>
+        <button className="text-button" onClick={() => { localStorage.removeItem(SAVED_CARDS); setInheritCards(false); setError("保存したカードを削除しました。"); }}>保存カードをリセット</button>
         <button className="primary" disabled={busy} onClick={() => void enter("create")}>新しい部屋をつくる <span>→</span></button>
         <div className="divider"><span>または</span></div>
         <label>部屋コード<input maxLength={8} value={codeInput} onChange={(event) => setCodeInput(event.target.value.toUpperCase())} placeholder="8文字のコード" /></label>
@@ -190,13 +201,13 @@ function App() {
     </main>
   );
 
-  if (!room) return <main className="loading"><div className="spinner" /><p>部屋に接続しています…</p><button onClick={leaveView}>参加画面に戻る</button></main>;
+  if (!room) return <main className="loading"><div className="spinner" /><p>部屋に接続しています…</p><button disabled={busy} onClick={() => void leaveView()}>参加画面に戻る</button></main>;
 
   return (
     <main className="app-shell">
       <header className="topbar">
         <div className="brand"><span className="brand-icon">🎍</span><span>たけのこニョッキ</span></div>
-        <div className="top-actions"><span className={`connection ${connected ? "online" : "offline"}`}>{connected ? "接続中" : "再接続中"}</span><button className="text-button" onClick={leaveView}>退出</button></div>
+        <div className="top-actions"><span className={`connection ${connected ? "online" : "offline"}`}>{connected ? "接続中" : "再接続中"}</span><button className="text-button" disabled={busy} onClick={() => void leaveView()}>退出</button></div>
       </header>
 
       <div className="content">

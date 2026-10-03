@@ -55,14 +55,14 @@ export default {
       }
       return json({ error: "部屋を作れませんでした。もう一度お試しください。" }, 503);
     }
-    const match = /^\/api\/rooms\/([A-Z2-9]{8})\/(join|socket)$/.exec(url.pathname);
+    const match = /^\/api\/rooms\/([A-Z2-9]{8})\/(join|socket|leave)$/.exec(url.pathname);
     if (!match) return json({ error: "見つかりません。" }, 404);
     const [, code, action] = match;
-    if (action === "join" && request.method !== "POST") return json({ error: "操作できません。" }, 405);
+    if ((action === "join" || action === "leave") && request.method !== "POST") return json({ error: "操作できません。" }, 405);
     if (action === "socket" && request.method !== "GET") return json({ error: "操作できません。" }, 405);
     const stub = env.ROOMS.getByName(code);
-    if (action === "join") {
-      return stub.fetch(new Request("https://room.internal/join", { method: "POST", body: request.body, headers: request.headers }));
+    if (action === "join" || action === "leave") {
+      return stub.fetch(new Request(`https://room.internal/${action}`, { method: "POST", body: request.body, headers: request.headers }));
     }
     return stub.fetch(new Request(`https://room.internal/socket?token=${encodeURIComponent(url.searchParams.get("token") ?? "")}`, { headers: request.headers }));
   },
@@ -71,6 +71,27 @@ export default {
 export class GameRoom extends DurableObject<Env> {
   private async load(): Promise<RoomState | null> {
     return await this.ctx.storage.get<RoomState>("room") ?? null;
+  }
+
+  private async removePlayer(room: RoomState, id: string, now: number): Promise<void> {
+    room.players = room.players.filter((player) => player.id !== id);
+    for (const socket of this.ctx.getWebSockets(id)) socket.close(4002, "left room");
+    if (!room.players.length) {
+      await this.ctx.storage.deleteAll();
+      await this.ctx.storage.deleteAlarm();
+      return;
+    }
+    if (!room.players.some((player) => player.id === room.hostId)) room.hostId = [...room.players].sort((a, b) => a.joinedAt - b.joinedAt)[0].id;
+    this.updateHost(room);
+    if (["active", "countdown", "paused"].includes(room.phase)) {
+      if (this.missing(room).length) {
+        room.phase = "paused"; room.pauseUntil = now + RECONNECT_MS;
+        room.goAt = null; room.pending = []; room.cpuTimes = []; room.safeCalls = [];
+      } else startRound(room, now, false, true);
+    }
+    room.updatedAt = now;
+    await this.save(room);
+    this.broadcast(room);
   }
 
   private connected(id: string): boolean {
@@ -150,8 +171,16 @@ export class GameRoom extends DurableObject<Env> {
     const room = await this.load();
     if (!room || room.updatedAt + ROOM_LIFETIME_MS <= now) return json({ error: "部屋が見つからないか、期限切れです。" }, 404);
     if (this.maintain(room, now)) {
+      if (!room.players.length) { await this.ctx.storage.deleteAll(); await this.ctx.storage.deleteAlarm(); return json({ error: "部屋は終了しました。" }, 404); }
       await this.save(room);
       this.broadcast(room);
+    }
+    if (url.pathname === "/leave" && request.method === "POST") {
+      const input = await request.json().catch(() => ({})) as { token?: string };
+      const player = room.players.find((item) => item.token === input.token);
+      if (!player) return json({ error: "参加情報が無効です。" }, 403);
+      await this.removePlayer(room, player.id, now);
+      return json({ ok: true });
     }
     if (url.pathname === "/join" && request.method === "POST") {
       if (room.phase !== "lobby") return json({ error: "対戦中のため参加できません。" }, 409);
@@ -201,6 +230,8 @@ export class GameRoom extends DurableObject<Env> {
     catch { return; }
     const host = player.id === room.hostId;
     switch (command.type) {
+      case "leave":
+        await this.removePlayer(room, player.id, now); return;
       case "start":
         if (host && room.players.every((item) => this.connected(item.id)) && startMatch(room, now)) changed = true;
         break;
@@ -297,6 +328,7 @@ export class GameRoom extends DurableObject<Env> {
       return;
     }
     const changed = this.maintain(room, now);
+    if (!room.players.length) { await this.ctx.storage.deleteAll(); await this.ctx.storage.deleteAlarm(); return; }
     await this.save(room);
     if (changed) this.broadcast(room);
   }
