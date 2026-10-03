@@ -17,7 +17,9 @@ export type Player = {
 export type Card = { id: string; text: string };
 export type Call = { seat: number; number: number };
 export type TimedSeat = { seat: number; at: number };
+export type ChatMessage = { id: string; memberId: string; name: string; text: string; at: number };
 export type RoomState = {
+  messages: ChatMessage[];
   code: string;
   hostId: string;
   players: Player[];
@@ -48,7 +50,7 @@ export type PublicRoom = Omit<RoomState, "players" | "pending" | "cpuTimes" | "d
 
 export function createRoom(code: string, host: Player, cards: Card[], now: number): RoomState {
   return {
-    code, hostId: host.id, players: [host], phase: "lobby", round: 0,
+    messages: [], code, hostId: host.id, players: [host], phase: "lobby", round: 0,
     scores: Array(SEATS).fill(0), collisionMs: 500, penaltyEnabled: false, cards,
     goAt: null, lastProgressAt: null, pending: [], safeCalls: [], cpuTimes: [],
     dobons: [], losers: [], reason: null, pauseUntil: null, draws: {}, deck: [], updatedAt: now,

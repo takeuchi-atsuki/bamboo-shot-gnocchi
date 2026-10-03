@@ -6,3 +6,7 @@
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 .content:has(.action-zone){padding-bottom:165px}.action-zone{position:fixed;left:0;right:0;bottom:0;pointer-events:none}.call-button{pointer-events:auto}
 .footer-row{flex-wrap:wrap;gap:8px 16px}
+
+.chat-history { max-height: 180px; overflow-y: auto; overflow-wrap: anywhere; text-align: left; }
+.chat-history p { white-space: pre-wrap; padding: 8px 0; border-bottom: 1px solid #ddd; }
+.chat-history time { font-size: .75rem; opacity: .6; }
