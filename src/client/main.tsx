@@ -112,7 +112,7 @@ function App() {
     lastAudioRef.current = key;
     if (room.phase === "countdown") {
       unlockAudio();
-      speak(room.round === 1 ? "さあ、それではまいりましょう。たけのこ、たけのこ、ニョッキッキ！" : "たけのこ、たけのこ、ニョッキッキ！");
+      if (!room.randomStart) speak(room.round === 1 ? "さあ、それではまいりましょう。たけのこ、たけのこ、ニョッキッキ！" : "たけのこ、たけのこ、ニョッキッキ！");
       tone(196, 0.22);
     } else if (room.phase === "active") {
       stopSpeech();
@@ -226,7 +226,7 @@ function App() {
         <section className="stage">
           <div className="stage-label">ROUND {String(room.round).padStart(2, "0")}</div>
           {room.phase === "lobby" && <><h2>参加者を待っています</h2><p>友だちにリンクを送って、全員そろったらスタート！</p></>}
-          {room.phase === "countdown" && <><h2>たけのこ たけのこ<br /><strong>ニョッキッキ！</strong></h2><div className="countdown">{remain}</div><p>合図より前に押すとフライング！</p></>}
+          {room.phase === "countdown" && <><h2>たけのこ たけのこ<br /><strong>ニョッキッキ！</strong></h2><div className="countdown">{room.randomStart ? "？" : remain}</div><p>合図より前に押すとフライング！</p></>}
           {room.phase === "active" && <><h2>いまだ！<strong>ニョッキ！</strong></h2><div className="call-number">{room.safeCalls.length + 1}<small>ニョッキ</small></div><p>同時に押したらドボン</p></>}
           {room.phase === "result" && <><h2>ドボン！</h2><p>{reasonLabel(room.reason)}</p><div className="result-names">{room.dobons.map((seat) => seatLabel(seat, room)).join("・")}</div></>}
           {room.phase === "finished" && <><h2>ドボン決定！</h2><p>今回の負けは…</p><div className="result-names">{room.losers.map((seat) => seatLabel(seat, room)).join("・")}</div></>}
@@ -259,6 +259,7 @@ function App() {
 
         {room.phase === "lobby" && <section className="panel">
           <label>同時コール判定<select disabled={!isHost} value={room.collisionMs ?? 500} onChange={(event) => send({ type: "setCollision", collisionMs: Number(event.target.value) })}><option value={200}>200ms</option><option value={300}>300ms</option><option value={500}>500ms（従来）</option></select></label>
+          <label><input type="checkbox" disabled={!isHost} checked={room.randomStart ?? false} onChange={(event) => send({ type: "setRandomStart", enabled: event.target.checked })} />ランダムスタート（2〜8秒・開始合図あり）</label>
           <div className="section-heading"><h3>ドボンカード</h3><span>全員で編集できます</span></div>
           <div className="mode-row"><span>罰ゲームありモード</span><button className={`toggle ${room.penaltyEnabled ? "on" : ""}`} disabled={!isHost} onClick={() => send({ type: "setMode", enabled: !room.penaltyEnabled })} aria-label="罰ゲームモード切替" aria-pressed={room.penaltyEnabled}><span /></button></div>
           <form className="card-form" onSubmit={addCard}><input maxLength={120} value={cardInput} onChange={(event) => setCardInput(event.target.value)} placeholder="カードの内容を入力" /><button type="submit">追加</button></form>
