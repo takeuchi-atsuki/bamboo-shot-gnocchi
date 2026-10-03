@@ -70,7 +70,9 @@ export default {
 
 export class GameRoom extends DurableObject<Env> {
   private async load(): Promise<RoomState | null> {
-    return await this.ctx.storage.get<RoomState>("room") ?? null;
+    const room = await this.ctx.storage.get<RoomState>("room") ?? null;
+    if (room) room.messages ??= [];
+    return room;
   }
 
   private async removePlayer(room: RoomState, id: string, now: number): Promise<void> {
@@ -228,6 +230,7 @@ export class GameRoom extends DurableObject<Env> {
     let command: { type?: string; text?: unknown; id?: unknown; enabled?: unknown; collisionMs?: unknown };
     try { command = JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message)); }
     catch { return; }
+    if (!command || typeof command !== "object") return;
     const host = player.id === room.hostId;
     switch (command.type) {
       case "leave":
@@ -237,6 +240,15 @@ export class GameRoom extends DurableObject<Env> {
           room.collisionMs = command.collisionMs as RoomState["collisionMs"]; changed = true;
         }
         break;
+      case "chat": {
+        const text = typeof command.text === "string" ? command.text.trim().slice(0, 200) : "";
+        const last = room.messages.filter((item) => item.memberId === player.id).at(-1);
+        if (text && (!last || now - last.at >= 1000)) {
+          room.messages.push({ id: crypto.randomUUID(), memberId: player.id, name: player.name, text, at: now });
+          room.messages = room.messages.slice(-50); changed = true;
+        }
+        break;
+      }
       case "start":
         if (host && room.players.every((item) => this.connected(item.id)) && startMatch(room, now)) changed = true;
         break;
