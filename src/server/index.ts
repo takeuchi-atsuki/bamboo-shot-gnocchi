@@ -227,7 +227,7 @@ export class GameRoom extends DurableObject<Env> {
     const player = room.players.find((item) => item.id === id);
     if (!player) return;
     let changed = this.maintain(room, now);
-    let command: { type?: string; text?: unknown; id?: unknown; enabled?: unknown; collisionMs?: unknown };
+    let command: { type?: string; text?: unknown; id?: unknown; enabled?: unknown; collisionMs?: unknown; target?: unknown; signal?: unknown };
     try { command = JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message)); }
     catch { return; }
     if (!command || typeof command !== "object") return;
@@ -249,6 +249,19 @@ export class GameRoom extends DurableObject<Env> {
         }
         break;
       }
+      case "voiceReady":
+        for (const target of this.ctx.getWebSockets()) if (target.readyState === WebSocket.OPEN) target.send(JSON.stringify({ type: "voiceReset", from: player.id }));
+        break;
+      case "voiceSignal": {
+        if (typeof command.target !== "string" || command.target === player.id || !room.players.some((item) => item.id === command.target) || !command.signal || typeof command.signal !== "object" || (JSON.stringify(command.signal) ?? "").length > 20_000) break;
+        for (const target of this.ctx.getWebSockets(command.target)) {
+          if (target.readyState === WebSocket.OPEN) target.send(JSON.stringify({ type: "voiceSignal", from: player.id, signal: command.signal }));
+        }
+        break;
+      }
+      case "voiceState":
+        for (const target of this.ctx.getWebSockets()) if (target.readyState === WebSocket.OPEN) target.send(JSON.stringify({ type: "voiceState", from: player.id, talking: command.enabled === true }));
+        break;
       case "start":
         if (host && room.players.every((item) => this.connected(item.id)) && startMatch(room, now)) changed = true;
         break;
