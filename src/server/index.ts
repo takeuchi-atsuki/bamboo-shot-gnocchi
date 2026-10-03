@@ -225,13 +225,18 @@ export class GameRoom extends DurableObject<Env> {
     const player = room.players.find((item) => item.id === id);
     if (!player) return;
     let changed = this.maintain(room, now);
-    let command: { type?: string; text?: unknown; id?: unknown; enabled?: unknown };
+    let command: { type?: string; text?: unknown; id?: unknown; enabled?: unknown; collisionMs?: unknown };
     try { command = JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message)); }
     catch { return; }
     const host = player.id === room.hostId;
     switch (command.type) {
       case "leave":
         await this.removePlayer(room, player.id, now); return;
+      case "setCollision":
+        if (host && room.phase === "lobby" && [200, 300, 500].includes(command.collisionMs as number)) {
+          room.collisionMs = command.collisionMs as RoomState["collisionMs"]; changed = true;
+        }
+        break;
       case "start":
         if (host && room.players.every((item) => this.connected(item.id)) && startMatch(room, now)) changed = true;
         break;
