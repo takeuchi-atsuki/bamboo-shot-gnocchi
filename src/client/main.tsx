@@ -252,6 +252,7 @@ function App() {
         </section>}
 
         {room.phase === "lobby" && <section className="panel">
+          <label>同時コール判定<select disabled={!isHost} value={room.collisionMs ?? 500} onChange={(event) => send({ type: "setCollision", collisionMs: Number(event.target.value) })}><option value={200}>200ms</option><option value={300}>300ms</option><option value={500}>500ms（従来）</option></select></label>
           <div className="section-heading"><h3>ドボンカード</h3><span>全員で編集できます</span></div>
           <div className="mode-row"><span>罰ゲームありモード</span><button className={`toggle ${room.penaltyEnabled ? "on" : ""}`} disabled={!isHost} onClick={() => send({ type: "setMode", enabled: !room.penaltyEnabled })} aria-label="罰ゲームモード切替" aria-pressed={room.penaltyEnabled}><span /></button></div>
           <form className="card-form" onSubmit={addCard}><input maxLength={120} value={cardInput} onChange={(event) => setCardInput(event.target.value)} placeholder="カードの内容を入力" /><button type="submit">追加</button></form>
@@ -271,7 +272,7 @@ function App() {
           </div>}
           {isHost && <button className="secondary" onClick={() => send({ type: "newGame" })}>同じメンバーでもう一度</button>}
         </div>}
-        <div className="footer-row"><button className="sound-toggle" onClick={() => { unlockAudio(); lastAudioRef.current = ""; if (sound) stopSpeech(); else { tone(523, 0.15); speak("音声オン。スタート！"); } setSound(!sound); }}>{sound ? "🔊 音声オン" : "🔇 音声オフ"}</button><button className="sound-toggle" onClick={() => { unlockAudio(); tone(523, 0.15); speak("スタート！"); }} aria-label="音声をテスト">音声テスト</button><span>同時押し判定 0.5秒</span></div>
+        <div className="footer-row"><button className="sound-toggle" onClick={() => { unlockAudio(); lastAudioRef.current = ""; if (sound) stopSpeech(); else { tone(523, 0.15); speak("音声オン。スタート！"); } setSound(!sound); }}>{sound ? "🔊 音声オン" : "🔇 音声オフ"}</button><button className="sound-toggle" onClick={() => { unlockAudio(); tone(523, 0.15); speak("スタート！"); }} aria-label="音声をテスト">音声テスト</button><span>同時押し判定 {(room.collisionMs ?? 500) / 1000}秒</span></div>
       </div>
     </main>
   );

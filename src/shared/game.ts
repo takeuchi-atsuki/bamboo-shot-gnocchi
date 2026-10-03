@@ -24,6 +24,7 @@ export type RoomState = {
   phase: Phase;
   round: number;
   scores: number[];
+  collisionMs: 200 | 300 | 500;
   penaltyEnabled: boolean;
   cards: Card[];
   goAt: number | null;
@@ -48,7 +49,7 @@ export type PublicRoom = Omit<RoomState, "players" | "pending" | "cpuTimes" | "d
 export function createRoom(code: string, host: Player, cards: Card[], now: number): RoomState {
   return {
     code, hostId: host.id, players: [host], phase: "lobby", round: 0,
-    scores: Array(SEATS).fill(0), penaltyEnabled: false, cards,
+    scores: Array(SEATS).fill(0), collisionMs: 500, penaltyEnabled: false, cards,
     goAt: null, lastProgressAt: null, pending: [], safeCalls: [], cpuTimes: [],
     dobons: [], losers: [], reason: null, pauseUntil: null, draws: {}, deck: [], updatedAt: now,
   };
@@ -166,7 +167,7 @@ export function advance(room: RoomState, now: number, random = Math.random): boo
       continue;
     }
     if (room.phase !== "active") break;
-    const pendingEnd = room.pending.length ? room.pending[0].at + COLLISION_MS + 1 : Infinity;
+    const pendingEnd = room.pending.length ? room.pending[0].at + (room.collisionMs ?? COLLISION_MS) + 1 : Infinity;
     const cpuAt = Math.min(...room.cpuTimes.map((event) => event.at), Infinity);
     const idleAt = room.pending.length ? Infinity : (room.lastProgressAt ?? now) + IDLE_MS;
     const next = Math.min(pendingEnd, cpuAt, idleAt);
@@ -190,7 +191,7 @@ export function nextDue(room: RoomState): number | null {
   if (room.phase === "countdown") return room.goAt;
   if (room.phase === "active") {
     return Math.min(
-      room.pending.length ? room.pending[0].at + COLLISION_MS + 1 : Infinity,
+      room.pending.length ? room.pending[0].at + (room.collisionMs ?? COLLISION_MS) + 1 : Infinity,
       ...room.cpuTimes.map((event) => event.at),
       room.pending.length ? Infinity : (room.lastProgressAt ?? Date.now()) + IDLE_MS,
     );
