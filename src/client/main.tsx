@@ -4,6 +4,7 @@ import { tone, speak, stopSpeech, unlockAudio } from "./audio";
 import type { PublicRoom } from "../shared/game";
 import "./style.css";
 import { Chat } from "./chat";
+import { Voice } from "./voice";
 
 type Identity = { code: string; memberId: string; token: string };
 type ServerMessage = { type: "snapshot"; room: PublicRoom; serverNow: number };
@@ -65,6 +66,9 @@ function App() {
       socket.onmessage = (event) => {
         let data: ServerMessage;
         try { data = JSON.parse(event.data) as ServerMessage; } catch { return; }
+        if ((data as { type: string }).type.startsWith("voice")) {
+          window.dispatchEvent(new CustomEvent("nyokki-voice", { detail: data })); return;
+        }
         if (data.type !== "snapshot") return;
         setOffset(data.serverNow - Date.now());
         setRoom(data.room);
@@ -273,6 +277,7 @@ function App() {
           </div>}
           {isHost && <button className="secondary" onClick={() => send({ type: "newGame" })}>同じメンバーでもう一度</button>}
         </div>}
+        <Voice members={room.players} memberId={identity.memberId} connected={connected} send={send} />
         <Chat messages={room.messages ?? []} connected={connected} send={send} />
         <div className="footer-row"><button className="sound-toggle" onClick={() => { unlockAudio(); lastAudioRef.current = ""; if (sound) stopSpeech(); else { tone(523, 0.15); speak("音声オン。スタート！"); } setSound(!sound); }}>{sound ? "🔊 音声オン" : "🔇 音声オフ"}</button><button className="sound-toggle" onClick={() => { unlockAudio(); tone(523, 0.15); speak("スタート！"); }} aria-label="音声をテスト">音声テスト</button><span>同時押し判定 {(room.collisionMs ?? 500) / 1000}秒</span></div>
       </div>
